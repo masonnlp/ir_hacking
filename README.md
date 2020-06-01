@@ -5,6 +5,7 @@ Instead of the typical java based components such as Lucene, Solr and Elasticsea
 
 Whoosh is written in Python, is light weight, does not require a saperate server process and is very similar to Lucene.
 
+## To run
 git clone https://github.com/masonnlp/ir_hacking
 
 cd ir_hacking
