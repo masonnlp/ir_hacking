@@ -1,6 +1,5 @@
 """
 This file has the beginnning of the SQUAD_IR module
-TODO: add instance variables
 TODO: add index deletion and checking utility methods
 TODO: clean up documentations
 """
@@ -15,19 +14,19 @@ from whoosh.analysis import StemmingAnalyzer
 from whoosh.qparser import QueryParser
 
 
-class SQUAD_IR:
+class SQUADIR:
     """
     SQUAD_IR class
     TODO flush out docustring
     """
 
-    def SQUAD_IR(self):
+    def SQUADIR(self):
         """
         default construstor for now
         """
         pass
 
-    def load_squad(self):
+    def load(self):
         """
         utiltiy method to load squad data set
         TODO reorganize locaiton of data set into data subdirectory
@@ -65,8 +64,7 @@ class SQUAD_IR:
                         # print("            " + text)
                         # print("            " + str(answer_start))
                         pass
-        df_para = pd.DataFrame(data={'title': titles, 'context': contexts})
-        return df_para
+        self.df_context = pd.DataFrame(data={'title': titles, 'context': contexts})
 
     def mk_index(self):
         """
@@ -77,29 +75,28 @@ class SQUAD_IR:
             os.mkdir("indexdir")
         schema = Schema(title=TEXT(stored=True),
                         context=TEXT(stored=True, analyzer=StemmingAnalyzer()))
-        ix = index.create_in("indexdir", schema)
-        return ix
-
-    def index_docs(self, ix, df):
+        self.ix = index.create_in("indexdir", schema)
+        
+    def index_docs(self):
         """"
         indexes documents
         TODO: move df to instance variable
         """
-        writer = ix.writer()
+        writer = self.ix.writer()
         print("adding docunents")
-        for i, row in df.iterrows():
+        for i, row in self.df_context.iterrows():
             writer.add_document(title=row['title'], context=row['context'])
         print("commiting index")
         writer.commit()
 
-    def query_index(self, ix, query=u"nederduits"):
+    def query_index(self, query=u"nederduits"):
         """
         simple method to query index
         TODO: return results
         """
-        qp = QueryParser("context", schema=ix.schema)
+        qp = QueryParser("context", schema=self.ix.schema)
         q = qp.parse(query)
-        with ix.searcher() as s:
+        with self.ix.searcher() as s:
             results = s.search(q)
             for result in results:
                 print(result)
@@ -110,8 +107,8 @@ def test_main():
     main testing method
     TODO: make it more exhaustive
     """
-    squad_ir = SQUAD_IR()
-    df = squad_ir.load_squad()
-    ix = squad_ir.mk_index()
-    squad_ir.index_docs(ix, df)
-    squad_ir.query_index(ix, "hello")
+    squad_ir = SQUADIR()
+    squad_ir.load()
+    squad_ir.mk_index()
+    squad_ir.index_docs()
+    squad_ir.query_index("hello")
