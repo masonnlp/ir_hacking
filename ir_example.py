@@ -64,7 +64,8 @@ class SQUADIR:
                         # print("            " + text)
                         # print("            " + str(answer_start))
                         pass
-        self.df_context = pd.DataFrame(data={'title': titles, 'context': contexts})
+        self.df_context = pd.DataFrame(data={'title': titles,
+                                             'context': contexts})
 
     def mk_index(self):
         """
@@ -76,7 +77,7 @@ class SQUADIR:
         schema = Schema(title=TEXT(stored=True),
                         context=TEXT(stored=True, analyzer=StemmingAnalyzer()))
         self.ix = index.create_in("indexdir", schema)
-        
+
     def index_docs(self):
         """"
         indexes documents
