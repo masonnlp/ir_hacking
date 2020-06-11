@@ -4,10 +4,12 @@ TODO: add index deletion and checking utility methods
 TODO: clean up documentations
 """
 import json
+import shutil
 import pandas as pd
 import os
 import os.path
 from whoosh import index
+import hashlib
 # from whoosh.fields import Schema, TEXT, KEYWORD, ID, STORED
 from whoosh.fields import Schema, TEXT
 from whoosh.analysis import StemmingAnalyzer
@@ -16,7 +18,7 @@ from whoosh.qparser import QueryParser
 
 class SQUADIR:
     """
-    SQUAD_IR class
+    SQUADIR class
     TODO flush out docustring
     """
 
@@ -37,9 +39,19 @@ class SQUADIR:
         with open('train-v2.0.json') as f:
             data = json.load(f)
         d = data['data']
-        titles = []
-        contexts = []
-        # context_ids = []
+        ans_count = 0
+        context_titles = []
+        context_contexts = []
+        context_contextids = []
+        question_contextids = []
+        question_questionids = []
+        question_questions = []
+        question_is_impossibles = []
+        answer_contextids = []
+        answer_questionids = []
+        answer_answerids = []
+        answer_answers = []
+        answer_answer_starts = []
         for i in d:
             title = i['title']
             paragraphs = i['paragraphs']
@@ -47,36 +59,60 @@ class SQUADIR:
             for p in paragraphs:
                 qas = p['qas']
                 context = p['context']
-                # print("    " + context)
-                titles.append(title)
-                contexts.append(context)
+                contextid = hashlib.sha1(context.encode()).hexdigest()
+                context_titles.append(title)
+                context_contextids.append(contextid)
+                context_contexts.append(context)
                 for qa in qas:
-                    # question = qa['question']
-                    # id = qa['id']
-                    # print("        " + question)
-                    # print("        " + id)
+                    question = qa['question']
+                    questionid = qa['id']
+                    is_impossible = qa['is_impossible']
+                    question_contextids.append(contextid)
+                    question_questionids.append(questionid)
+                    question_questions.append(question)
+                    question_is_impossibles.append(is_impossible)
                     answers = qa['answers']
-                    # is_impossible = qa['is_impossible']
-                    # print("        " + str(is_impossible))
                     for answer in answers:
-                        # text = answer['text']
-                        # answer_start = answer['answer_start']
-                        # print("            " + text)
-                        # print("            " + str(answer_start))
-                        pass
-        self.df_context = pd.DataFrame(data={'title': titles,
-                                             'context': contexts})
+                        ans_count += 1
+                        text = answer['text']
+                        answer_start = answer['answer_start']
+                        answerid = hashlib.md5(text.encode()).hexdigest()
+                        answer_contextids.append(contextid)
+                        answer_questionids.append(questionid)
+                        answer_answerids.append(answerid)
+                        answer_answers.append(text)
+                        answer_answer_starts.append(answer_start)
+        self.df_context = pd.DataFrame(
+            {'contextid': context_contextids, 'title': context_titles,
+             'context': context_contexts})
+        self.df_questions = pd.DataFrame(
+            {'contextid': question_contextids,
+             'questionid': question_questionids,
+             'question': question_questions,
+             'is_impossible': question_is_impossibles})
+        self.df_answers = pd.DataFrame(
+            {'contextid': answer_contextids,
+             'questionid': answer_questionids,
+             'answerid': answer_answerids,
+             'answer': answer_answers,
+             'answer_start': answer_answer_starts})
 
-    def mk_index(self):
+    def mk_index(self, indexpath="indexdir", overwrite=True):
         """
         creates an index for IR operations
-        TODO: add variable for placement of index
         """
-        if not os.path.exists("indexdir"):
-            os.mkdir("indexdir")
+        if os.path.exists(indexpath):
+            if overwrite:
+                shutil.rmtree(indexpath)
+        if not os.path.exists(indexpath):
+            os.mkdir(indexpath)
         schema = Schema(title=TEXT(stored=True),
                         context=TEXT(stored=True, analyzer=StemmingAnalyzer()))
         self.ix = index.create_in("indexdir", schema)
+
+    def rm_index(self, indexpath="indexdir"):
+        if os.path.exists(indexpath):
+            os.rmdir(indexpath)
 
     def index_docs(self):
         """"
