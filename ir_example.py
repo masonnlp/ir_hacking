@@ -3,6 +3,7 @@ This file has the beginnning of the SQUAD_IR module
 TODO: add index deletion and checking utility methods
 TODO: clean up documentations
 TODO: add individual search functions
+TODO: add id based lookups
 """
 import json
 import shutil
