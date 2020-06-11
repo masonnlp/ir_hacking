@@ -2,6 +2,7 @@
 This file has the beginnning of the SQUAD_IR module
 TODO: add index deletion and checking utility methods
 TODO: clean up documentations
+TODO: add individual search functions
 """
 import json
 import shutil
@@ -11,7 +12,7 @@ import os.path
 from whoosh import index
 import hashlib
 # from whoosh.fields import Schema, TEXT, KEYWORD, ID, STORED
-from whoosh.fields import Schema, TEXT
+from whoosh.fields import Schema, TEXT, BOOLEAN, ID, NUMERIC
 from whoosh.analysis import StemmingAnalyzer
 from whoosh.qparser import QueryParser
 
@@ -32,9 +33,8 @@ class SQUADIR:
         """
         utiltiy method to load squad data set
         TODO reorganize locaiton of data set into data subdirectory
+        TODO gzip data to minimize download
         TODO get path using standard methods
-        TODO gen ID for contexts
-        TODO save remainsing data as instance variable
         """
         with open('train-v2.0.json') as f:
             data = json.load(f)
@@ -97,7 +97,7 @@ class SQUADIR:
              'answer': answer_answers,
              'answer_start': answer_answer_starts})
 
-    def mk_index(self, indexpath="indexdir", overwrite=True):
+    def mk_index(self, indexpath="indexdir", overwrite=False):
         """
         creates an index for IR operations
         """
@@ -106,9 +106,20 @@ class SQUADIR:
                 shutil.rmtree(indexpath)
         if not os.path.exists(indexpath):
             os.mkdir(indexpath)
-        schema = Schema(title=TEXT(stored=True),
-                        context=TEXT(stored=True, analyzer=StemmingAnalyzer()))
-        self.ix = index.create_in("indexdir", schema)
+        self.context_schema = Schema(
+            contextid=ID(stored=True), title=TEXT(stored=True),
+            context=TEXT(stored=True, analyzer=StemmingAnalyzer()))
+        self.context_ix = index.create_in("indexdir", self.context_schema)
+        self.question_schema = Schema(
+            contextid=ID(stored=True), questionid=ID(stored=True),
+            is_impossible=BOOLEAN(stored=True),
+            question=TEXT(stored=True, analyzer=StemmingAnalyzer()))
+        self.question_ix = index.create_in("indexdir", self.question_schema)
+        self.answer_schema = Schema(
+            contextid=ID(stored=True), questionid=ID(stored=True),
+            answerid=ID(stored=True), answer_start=NUMERIC(stored=True),
+            answer=TEXT(stored=True, analyzer=StemmingAnalyzer()))
+        self.answer_ix = index.create_in("indexdir", self.answer_schema)
 
     def rm_index(self, indexpath="indexdir"):
         if os.path.exists(indexpath):
@@ -117,23 +128,63 @@ class SQUADIR:
     def index_docs(self):
         """"
         indexes documents
-        TODO: move df to instance variable
+        TODO: add handling LockError
+        TODO: add handling test for LockError
         """
-        writer = self.ix.writer()
         print("adding docunents")
+        context_writer = self.context_ix.writer()
         for i, row in self.df_context.iterrows():
-            writer.add_document(title=row['title'], context=row['context'])
+            context_writer.add_document(
+                contextid=row['contextid'],
+                title=row['title'], context=row['context'])
+        context_writer.commit()
+        question_writer = self.question_ix.writer()
+        for i, row in self.df_questions.iterrows():
+            question_writer.add_document(
+                contextid=row['contextid'], questionid=row['questionid'],
+                question=row['question'], is_impossible=row['is_impossible'])
+        question_writer.commit()
+        answer_writer = self.answer_ix.writer()
+        for i, row in self.df_answers.iterrows():
+            answer_writer.add_document(
+                contextid=row['contextid'], questionid=row['questionid'],
+                answerid=row['answerid'],
+                answer=row['answer'], answer_start=row['answer_start'])
+        answer_writer.commit()
         print("commiting index")
-        writer.commit()
 
-    def query_index(self, query=u"nederduits"):
+    def query_context(self, query=u"nederduits"):
         """
         simple method to query index
         TODO: return results
         """
-        qp = QueryParser("context", schema=self.ix.schema)
+        qp = QueryParser("context", schema=self.context_schema)
         q = qp.parse(query)
-        with self.ix.searcher() as s:
+        with self.context_ix.searcher() as s:
+            results = s.search(q)
+            for result in results:
+                print(result)
+
+    def query_question(self, query=u"nederduits"):
+        """
+        simple method to query index
+        TODO: return results
+        """
+        qp = QueryParser("question", schema=self.question_schema)
+        q = qp.parse(query)
+        with self.question_ix.searcher() as s:
+            results = s.search(q)
+            for result in results:
+                print(result)
+
+    def query_answer(self, query=u"nederduits"):
+        """
+        simple method to query index
+        TODO: return results
+        """
+        qp = QueryParser("answer", schema=self.question_schema)
+        q = qp.parse(query)
+        with self.answer_ix.searcher() as s:
             results = s.search(q)
             for result in results:
                 print(result)
@@ -146,6 +197,6 @@ def test_main():
     """
     squad_ir = SQUADIR()
     squad_ir.load()
-    squad_ir.mk_index()
+    squad_ir.mk_index(overwrite=True)
     squad_ir.index_docs()
-    squad_ir.query_index("hello")
+    squad_ir.query_context("hello")
